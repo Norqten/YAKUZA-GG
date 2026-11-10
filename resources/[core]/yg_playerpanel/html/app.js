@@ -40,6 +40,7 @@ window.addEventListener('message', (event) => {
 
 closeButton.addEventListener('click', closePanel);
 refreshButton.addEventListener('click', () => postNui('refresh'));
+document.getElementById('casesButton').addEventListener('click', () => postNui('openCases'));
 
 document.addEventListener('keydown', (event) => {
     if (event.key === 'Escape' && !app.classList.contains('hidden')) {
