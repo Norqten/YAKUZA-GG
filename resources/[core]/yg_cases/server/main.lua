@@ -110,7 +110,8 @@ RegisterNetEvent('yg_cases:buy', function(caseId)
         while #data.history > 20 do table.remove(data.history) end
         save()
         TriggerClientEvent('yg_cases:result', src, {
-            ok=true, message=('Zdobyto: %s x%d'):format(reward.label,reward.count)
+            ok=true, message=('Zdobyto: %s x%d'):format(reward.label,reward.count),
+            rewardLabel=reward.label, rewardCount=reward.count, caseId=caseId
         })
         print(('[YAKUZA CASES] %s opened %s -> %s x%d'):format(
             GetPlayerName(src) or src,caseId,reward.item,reward.count))
