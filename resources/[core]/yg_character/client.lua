@@ -43,17 +43,43 @@ end
 local function enter(data)
  if active then return end
  active = true
- SetNuiFocus(false,false)
+ SetNuiFocus(false, false)
  SendNUIMessage({action='close'})
- local model = joaat(models[data.gender])
- exports.spawnmanager:spawnPlayer({
-  x=spawn.x,y=spawn.y,z=spawn.z,heading=spawn.w,model=model,skipFade=false
- },function()
+ CreateThread(function()
+  local model = joaat(models[data.gender])
+  RequestModel(model)
+  local deadline = GetGameTimer() + 12000
+  while not HasModelLoaded(model) and GetGameTimer() < deadline do Wait(50) end
+  if not HasModelLoaded(model) then
+   print('^1[YAKUZA - GG]^7 Character model loading timed out.')
+   active = false
+   DoScreenFadeIn(500)
+   return
+  end
+  local player = PlayerId()
+  SetPlayerModel(player, model)
+  SetModelAsNoLongerNeeded(model)
+  local ped = PlayerPedId()
+  NetworkResurrectLocalPlayer(spawn.x, spawn.y, spawn.z, spawn.w, true, false)
+  ped = PlayerPedId()
+  SetEntityCoordsNoOffset(ped, spawn.x, spawn.y, spawn.z, false, false, false)
+  SetEntityHeading(ped, spawn.w)
+  RequestCollisionAtCoord(spawn.x, spawn.y, spawn.z)
+  FreezeEntityPosition(ped, false)
+  SetEntityVisible(ped, true, false)
+  SetEntityInvincible(ped, false)
+  ClearPedTasksImmediately(ped)
+  SetEntityHealth(ped, GetEntityMaxHealth(ped))
   applyLook(data)
-  FreezeEntityPosition(PlayerPedId(),false)
+  local untilTime = GetGameTimer() + 5000
+  while not HasCollisionLoadedAroundEntity(ped) and GetGameTimer() < untilTime do Wait(100) end
+  ShutdownLoadingScreen()
+  ShutdownLoadingScreenNui()
   DisplayRadar(true)
-  DoScreenFadeIn(500)
-  active=false
+  DoScreenFadeIn(700)
+  TriggerEvent('playerSpawned', {x=spawn.x,y=spawn.y,z=spawn.z,heading=spawn.w})
+  active = false
+  print('^2[YAKUZA - GG]^7 Character created and spawned.')
  end)
 end
 local function openMenu()
@@ -83,12 +109,6 @@ end)
 RegisterCommand('postac',function()
  if not active then openMenu() end
 end,false)
-CreateThread(function()
- while not NetworkIsPlayerActive(PlayerId()) do Wait(250) end
- Wait(2300)
- saved=loadSaved()
- openMenu()
-end)
 AddEventHandler('onClientResourceStart',function(name)
  if name~=GetCurrentResourceName() then return end
  CreateThread(function()
