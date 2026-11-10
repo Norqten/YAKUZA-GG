@@ -1,8 +1,4 @@
-# YAKUZA - GG Clothes
-Simple standalone GTA V clothing commands; no external DLC assets or frameworks.
+# YAKUZA - GG /skin
+Standalone GTA V character appearance editor. Command: `/skin`. Change hairstyle, hair color, facial hair, makeup, clothing and props with a live preview. Click **Zapisz wygląd** to save locally using FiveM resource KVP. Saved appearance loads after spawn for the same local FiveM client and player server ID; this is **not a persistent server-side character database** and can be unreliable if server IDs change. Clothing options depend on ped model; use freemode models for most options. No GTA5RP DLC assets are included.
 
-Copy to `resources/[core]/yg_clothes` and add `ensure yg_clothes` to server.cfg.
-
-In game: `/ciuchy`, `/ubranie 11 1 0`, `/dodatek 0 1 0`, `/zdejmij 0`.
-
-Clothing variations depend on the current ped model. This is a basic test resource: it does not persist outfits across sessions and does not include GTA5RP clothing files or a visual wardrobe UI.
+Install in `resources/[core]/yg_clothes`, then `ensure yg_clothes` in server.cfg. Ensure the spawn resource creates the ped before opening /skin.
