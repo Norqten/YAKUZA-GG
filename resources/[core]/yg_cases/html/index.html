@@ -21,6 +21,23 @@ button:hover{background:#f04458}button:disabled{opacity:.5;cursor:not-allowed}
 .history{margin-top:18px;border-top:1px solid #30313c;padding-top:16px}
 .history li{margin:7px 0;color:#b7b8c2;font-size:12px}
 @media(max-width:600px){header{padding:16px;flex-wrap:wrap;gap:12px}.main{padding:15px}}
+
+.detail-overlay{display:none;position:fixed;inset:0;background:#030408e8;z-index:5;align-items:center;justify-content:center;padding:18px}
+.detail{width:min(850px,96vw);max-height:90vh;overflow:auto;background:#11141e;border:1px solid #7b2734;border-radius:16px;padding:24px;box-shadow:0 0 70px #d72d3425}
+.detail-top{display:flex;justify-content:space-between;align-items:center;gap:12px}
+.detail h2{margin:4px 0 10px}.detail p{color:#aeb1be;font-size:13px}
+.prize-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(165px,1fr));gap:10px;margin:20px 0}
+.prize{background:#1c202d;border:1px solid #3b4050;border-radius:10px;padding:16px;text-align:center}
+.prize .prize-icon{font-size:29px;color:#e7ad50;margin-bottom:8px}.prize strong{display:block;font-size:13px}
+.prize .chance{color:#ffcb72;font-size:12px;margin-top:9px}
+.roulette{display:none;position:relative;overflow:hidden;height:118px;border:1px solid #49414b;border-radius:10px;background:#0a0c13;margin:18px 0}
+.roulette:after{content:'';position:absolute;z-index:2;left:50%;top:0;bottom:0;width:3px;background:#ff3d52;box-shadow:0 0 15px #ff3d52;transform:translateX(-50%)}
+.roulette-track{display:flex;gap:8px;align-items:center;height:100%;width:max-content;will-change:transform}
+.roulette-item{flex:0 0 148px;height:95px;background:#222635;border:1px solid #664552;border-radius:8px;text-align:center;padding:14px 6px;font-size:12px}
+.roulette-item span{display:block;font-size:25px;color:#f1bb64;margin-bottom:9px}
+#win{font-size:19px;color:#ffd179;font-weight:bold;min-height:26px;text-align:center}
+.detail-actions{display:flex;justify-content:center;gap:12px}
+@media(prefers-reduced-motion:reduce){.roulette-track{transition:none!important}}
 </style></head>
 <body><div id="app"><div class="panel">
 <header><div><div class="muted red">YAKUZA - GG / PANEL GRACZA</div><h1>Skrzynki</h1><div class="muted">Otwieraj za Yakuza Coins</div></div>
@@ -28,33 +45,106 @@ button:hover{background:#f04458}button:disabled{opacity:.5;cursor:not-allowed}
 <div class="main"><div class="grid" id="cases"></div><div id="message" role="status"></div>
 <div class="history"><strong>Ostatnie otwarcia</strong><ul id="history"></ul></div></div>
 </div></div>
+<div class="detail-overlay" id="detailOverlay"><section class="detail">
+<div class="detail-top"><div><div class="muted red">YAKUZA - GG / SKRZYNKI YC</div><h2 id="detailName">Skrzynka</h2></div><button class="close" id="detailClose">✕</button></div>
+<p>Sprawdź wszystkie możliwe nagrody i szanse. Wynik losowania ustala serwer.</p>
+<div id="prizeGrid" class="prize-grid"></div>
+<div class="roulette" id="roulette"><div class="roulette-track" id="rouletteTrack"></div></div>
+<div id="win" role="status"></div>
+<div class="detail-actions"><button id="buySelected">KUP I OTWÓRZ</button></div>
+</section></div>
 <script>
 const app=document.getElementById('app');
 const send=(name,data={})=>fetch('https://yg_cases/'+name,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)}).catch(()=>{});
 const escapeHtml=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-let coins=0;
+let coins=0, cases=[], selected=null, pending=false, spinning=false, currentAnimation=null;
+const overlay=document.getElementById('detailOverlay'), buy=document.getElementById('buySelected');
+const iconFor=(label)=>/Energy/i.test(label)?'⚡':/Pistol|Amunicja/i.test(label)?'✦':/Skin|Żeton/i.test(label)?'◆':'◈';
+function openDetails(c){
+if(pending||spinning)return;
+selected=c;overlay.style.display='flex';
+document.getElementById('detailName').textContent=c.label;
+document.getElementById('win').textContent='';
+document.getElementById('roulette').style.display='none';
+document.getElementById('prizeGrid').innerHTML=(c.rewards||[]).map(r=>
+'<div class="prize"><div class="prize-icon">'+iconFor(r.label)+'</div><strong>'+escapeHtml(r.label)+' ×'+Number(r.count)+'</strong><div class="chance">Szansa: '+Number(r.chance)+'%</div></div>').join('');
+buy.textContent='KUP I OTWÓRZ — '+c.price+' YC';
+buy.disabled=coins<c.price;
+}
+function closeDetails(){if(pending||spinning)return;overlay.style.display='none';selected=null}
 function render(data){
-coins=Number(data.coins)||0;document.getElementById('coins').textContent=coins.toLocaleString('pl-PL');
+coins=Number(data.coins)||0;cases=data.cases||[];
+document.getElementById('coins').textContent=coins.toLocaleString('pl-PL');
 const root=document.getElementById('cases');root.replaceChildren();
-(data.cases||[]).forEach(c=>{
+cases.forEach(c=>{
 const box=document.createElement('article');box.className='case';
-box.innerHTML='<div class="symbol">◈</div><h2>'+escapeHtml(c.label)+'</h2><div class="muted">Możliwe nagrody</div><ul class="rewards">'+
-(c.rewards||[]).map(r=>'<li>'+escapeHtml(r.label)+' x'+Number(r.count)+' ('+Number(r.chance)+'%)</li>').join('')+
-'</ul><div class="price">'+Number(c.price)+' YC</div>';
-const btn=document.createElement('button');btn.textContent='Otwórz skrzynkę';
-btn.disabled=coins<Number(c.price);btn.addEventListener('click',()=>{btn.disabled=true;send('buy',{case:c.id});setTimeout(()=>send('refresh'),600)});
+box.innerHTML='<div class="symbol">◈</div><h2>'+escapeHtml(c.label)+'</h2><div class="muted">Możliwe nagrody: '+(c.rewards||[]).length+'</div><div class="price">'+Number(c.price)+' YC</div>';
+const btn=document.createElement('button');btn.textContent='ZOBACZ NAGRODY';
+btn.addEventListener('click',()=>openDetails(c));
 box.append(btn);root.append(box);
 });
 document.getElementById('history').innerHTML=(data.history||[]).slice(0,10).map(h=>
 '<li>'+escapeHtml(h.date)+' — '+escapeHtml(h.case)+': '+escapeHtml(h.reward)+' x'+Number(h.count)+'</li>').join('');
+if(selected){const fresh=cases.find(c=>c.id===selected.id);if(fresh)selected=fresh;if(!pending&&!spinning)buy.disabled=coins<selected.price}
+}
+function weightedPick(rewards){
+const sum=rewards.reduce((n,r)=>n+Number(r.chance),0);
+let roll=Math.random()*sum;
+for(const r of rewards){roll-=Number(r.chance);if(roll<=0)return r}
+return rewards[rewards.length-1];
+}
+function finishSpin(reward){
+spinning=false;pending=false;
+document.getElementById('win').textContent='WYGRANA: '+reward.label+' ×'+reward.count;
+buy.disabled=coins<(selected?.price||Infinity);
+buy.textContent='OTWÓRZ PONOWNIE — '+(selected?.price||0)+' YC';
+currentAnimation=null;
+}
+function playSpin(result){
+const reward={label:result.rewardLabel,count:result.rewardCount};
+const pool=selected?.rewards||[];
+if(!pool.length){finishSpin(reward);return}
+spinning=true;
+const viewport=document.getElementById('roulette');
+const track=document.getElementById('rouletteTrack');
+viewport.style.display='block';track.replaceChildren();track.style.transform='translateX(0px)';
+const total=45, target=37, cardWidth=148, gap=8;
+for(let i=0;i<total;i++){
+const item=i===target?reward:weightedPick(pool);
+const el=document.createElement('div');el.className='roulette-item';
+const symbol=document.createElement('span');symbol.textContent=iconFor(item.label);
+const title=document.createElement('div');title.textContent=item.label+' ×'+item.count;
+el.append(symbol,title);track.append(el);
+}
+const center=viewport.clientWidth/2;
+const offset=target*(cardWidth+gap)+cardWidth/2-center;
+const reduced=window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+const duration=reduced?0:5800;
+const animation=track.animate([{transform:'translateX(0px)'},{transform:'translateX(-'+offset+'px)'}],
+{duration,easing:'cubic-bezier(.08,.67,.12,1)',fill:'forwards'});
+currentAnimation=animation;
+animation.onfinish=()=>{track.style.transform='translateX(-'+offset+'px)';animation.cancel();finishSpin(reward)};
 }
 window.addEventListener('message',e=>{
 const m=e.data||{};
 if(m.action==='open'){app.style.display='flex';send('refresh')}
-if(m.action==='close')app.style.display='none';
+if(m.action==='close'){app.style.display='none';overlay.style.display='none';pending=false;spinning=false}
 if(m.action==='update')render(m.data||{});
-if(m.action==='result')document.getElementById('message').textContent=m.data?.message||'';
+if(m.action==='result'){
+if(!pending)return;
+if(m.data?.ok && m.data.rewardLabel){playSpin(m.data)}
+else{pending=false;document.getElementById('win').textContent=m.data?.message||'Błąd otwierania';buy.disabled=false}
+}
 });
-document.getElementById('close').addEventListener('click',()=>send('close'));
-document.addEventListener('keydown',e=>{if(e.key==='Escape'&&app.style.display==='flex')send('close')});
+buy.addEventListener('click',()=>{
+if(!selected||pending||spinning||coins<selected.price)return;
+pending=true;buy.disabled=true;
+document.getElementById('win').textContent='Losowanie nagrody...';
+send('buy',{case:selected.id});
+});
+document.getElementById('detailClose').addEventListener('click',closeDetails);
+document.getElementById('close').addEventListener('click',()=>{if(!pending&&!spinning)send('close')});
+document.addEventListener('keydown',e=>{
+if(e.key==='Escape'){if(overlay.style.display==='flex')closeDetails();else if(app.style.display==='flex')send('close')}
+});
 </script></body></html>
