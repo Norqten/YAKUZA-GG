@@ -1,0 +1,6 @@
+fx_version 'cerulean'
+game 'gta5'
+author 'YAKUZA - GG'
+description 'Standalone vehicle garage'
+version '1.0.0'
+client_script 'client.lua'
