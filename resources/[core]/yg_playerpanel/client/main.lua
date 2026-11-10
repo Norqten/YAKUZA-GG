@@ -32,6 +32,12 @@ RegisterNUICallback('close', function(_, cb)
     cb({ ok = true })
 end)
 
+RegisterNUICallback('openCases', function(_, cb)
+    setPanelVisible(false)
+    ExecuteCommand('skrzynki')
+    cb({ ok = true })
+end)
+
 RegisterNUICallback('refresh', function(_, cb)
     TriggerServerEvent('yg_playerpanel:server:requestData')
     cb({ ok = true })
